@@ -1,0 +1,367 @@
+---
+title: "Assignment3"
+author: "Geetesh Matreja"
+date: "2024-05-23"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r include=FALSE}
+library (forecast)
+library (dLagM)
+library (expsmooth)
+library(x12)
+library (TSA)  
+library (Hmisc)
+library (car)  
+library (AER)
+library (tseries)
+library (ggplot2)
+library (expsmooth)
+library(readr)
+library(seasonal)
+library (seasonalview)
+```
+
+
+
+## Importing the Dataset
+
+```{r}
+
+url <- "https://raw.githubusercontent.com/serapheon98/ML1-RMIT/main/air%20traffic.csv"
+air_traffic <- read.csv(url)
+
+head(air_traffic)
+```
+
+
+```{r}
+# Create a Date column from Year and Month
+air_traffic$Date <- as.Date(paste(air_traffic$Year, air_traffic$Month, "01", sep="-"))
+air_traffic$Pax <- as.numeric(gsub(",", "", air_traffic$Pax))
+
+air_traffic$Year <- NULL
+air_traffic$Month <- NULL
+
+
+
+# Function to remove commas and convert to numeric
+clean_column <- function(column) {
+  as.numeric(gsub(",", "", column))
+}
+
+```
+
+## Converting Data set into Time series
+
+```{r}
+airts <- ts(air_traffic$Pax, start = c(2003, 1), frequency = 12)
+```
+
+# Data Set overview
+1. Dom_Pax: Domestic Air Travel Passengers
+2. Int_Pax: International Air Travel Passengers
+3. Pax: Total Air Travel Passengers - Target Variable
+4. Dom_Flt: Number of Flights (Domestic)
+5. Int_Flt: Number of Flights (International)
+6. Flt: Number of Flights (Total)
+7. Dom_RPM: Revenue Passenger-miles (Domestic)
+8. Int_RPM: Revenue Passenger-miles (International) 
+9. RPM: Revenue Passenger-miles (Total)
+10. Dom_ASM: Available Seat-miles (Domestic)
+11. Int_ASM: Available Seat-miles (International) 
+12. ASM: Available Seat-miles (Total)
+13. Dom_LF: Load Factor (Domestic)
+14. Int_LF: Load Factor (International)
+15. LF: Load Factor (Total)
+16. Date
+
+## Research Question
+
+Our goal in conducting this study is to estimate the total number of travelers—both local and foreign—who will take flights throughout the next ten days. We will create a time series model with the "Pax" variable as our goal in order to forecast daily passenger counts and offer insights into potential future trends in air travel.
+
+
+
+## 1 Descriptive Analysis
+
+## 1.1 a Summary Statistics
+
+```{r}
+summary_stats <- summary(airts)
+print(summary_stats)
+```
+
+The following are the summary statistics for the total number of passengers (Pax) who travelled by air during the specified period:
+
+- Minimum (Min.): 3,013,899 is the bare minimum of passengers registered in any given period. In the dataset, this is the lowest observed value.
+- First Quartile (1st Qu.): With a total passenger count of fewer than this value in 25% of the observed periods, the first quartile value is 57,645,576.
+- Median: With 63,899,130 as the median number of passengers, half of the periods have less passengers and the other half have more.
+- Mean: 62,601,919 is the mean (average) number of passengers. By adding up all of the passenger numbers and dividing by the total number of observations, this value is computed.
+- Third Quartile (3rd Qu.): At 69,447,429, the third quartile figure, 75% of the recorded periods had a total passenger count that is below this value.
+- Maximum (Max.): 87,810,772 is the largest number of passengers ever recorded in a given period. In the dataset, this denotes the maximum observed value.
+
+
+## 1.b QQ Plot for the series
+
+```{r}
+qqnorm(airts, main = "QQ Plot of Total Passengers")
+qqline(airts, col = "red")
+```
+- The distribution of the total number of passengers is compared to a theoretical normal distribution using the QQ (Quantile-Quantile) plot. The sample quantiles of the actual data are displayed on the Y-axis, while the X-axis displays the theoretical quantiles of a normal distribution. Where points would lie if the data perfectly followed a normal distribution is indicated by the red reference line. The majority of the data points in the middle region of this plot closely resemble the red line, indicating that the data in this area is roughly regularly distributed. On the other hand, deviations at both tails show that the passenger distribution is not normally distributed. In particular, compared to what would be expected from a normal distribution, the upper tail (right side) displays more extreme high values and the lower tail (left side) displays fewer extreme low values. These deviations imply that although the distribution is not entirely normal overall, with notable departures in the tails, the central data may be approximately normal.
+
+
+## 1.c Time series Plot
+
+```{r}
+
+airts_million <- airts / 1000000
+
+# Define the y-axis labels in millions
+y_labels <- seq(0, ceiling(max(airts_million, na.rm = TRUE)), by = 10)
+
+
+plot(airts_million, type = "o", xlab = "Year",
+     ylab = "Total Number of Passengers (in millions)",
+     main = "Time series plot of Total Air Passengers (2003 - 2023).",
+     yaxt = "n")
+
+
+axis(2, at = y_labels, labels = paste0(y_labels, "M"), las = 1)
+```
+
+- Trend: The plot's overall trend indicates a steady rise in passengers over time, reflecting rising demand for air travel until a dramatic fall in 2020.
+
+- Seasonality: There are distinct seasonal trends that exhibit consistent variations every year, indicating an increase in passengers during seasons of high travel demand, including holidays and summer vacations.
+
+- Changing Variance: With the exception of the years around 2020, when the variance in passenger numbers appears to be fairly steady, the variance looks to be increasing with time.
+
+- Behavior: The time series exhibits a consistent rising trend with notable seasonal fluctuations, which is abruptly broken by a sharp dip and rebound.
+
+- Change Points: The biggest shift is around 2020, when there is a sharp decline in passenger volume, probably as a result of the COVID-19 pandemic, and is followed by a period of recovery in the years that follow.
+
+
+
+
+
+## 1.d Functions
+
+```{r}
+tests <- function(ts_data, max_lag = 50) {
+ # Set up a multi-panel plot
+ par(mfrow = c(1, 2))
+ 
+ # Plot ACF with max lag set to 50
+ acf_result <- acf(ts_data, lag.max = max_lag, main = "ACF Plot")
+ 
+ 
+ # Plot PACF with max lag set to 50
+ pacf_result <- pacf(ts_data, lag.max = max_lag, main = "PACF Plot")
+ 
+ # Reset the plotting parameters
+ par(mfrow = c(1, 1))
+ 
+ # Return ACF and PACF results
+ return(list(acf_result = acf_result, pacf_result = pacf_result))
+}
+
+
+
+sort.score <- function(x, score = c("bic", "aic")){
+  if (score == "aic"){
+    x[with(x, order(AIC)),]
+  } else if (score == "bic") {
+    x[with(x, order(BIC)),]
+  } else {
+    warning('score = "x" only accepts valid arguments ("aic","bic")')
+  }
+}
+
+residual.analysis <- function(model, std = TRUE,start = 2, class = c("ARIMA","GARCH","ARMA-GARCH", "garch", "fGARCH")[1]){
+  library(TSA)
+  library(FitAR)
+  if (class == "ARIMA"){
+    if (std == TRUE){
+      res.model = rstandard(model)
+    }else{
+      res.model = residuals(model)
+    }
+  }else if (class == "GARCH"){
+    res.model = model$residuals[start:model$n.used]
+  }else if (class == "garch"){
+    res.model = model$residuals[start:model$n.used]  
+  }else if (class == "ARMA-GARCH"){
+    res.model = model@fit$residuals
+  }else if (class == "fGARCH"){
+    res.model = model@residuals
+  }else {
+    stop("The argument 'class' must be either 'ARIMA' or 'GARCH' ")
+  }
+  par(mfrow=c(3,2))
+  plot(res.model,type='o',ylab='Standardised residuals', main="Time series plot of standardised residuals")
+  abline(h=0)
+  hist(res.model,main="Histogram of standardised residuals")
+  qqnorm(res.model,main="QQ plot of standardised residuals")
+  qqline(res.model, col = 2)
+  acf(res.model,main="ACF of standardised residuals")
+  print(shapiro.test(res.model))
+  k=0
+  LBQPlot(res.model, lag.max = 30, StartLag = k + 1, k = 0, SquaredQ = FALSE)
+  par(mfrow=c(1,1))
+}
+
+
+```
+
+```{r}
+tests(airts)
+```
+- ACF Plot: Significant positive autocorrelation is shown in the ACF plot at lag 1, which rapidly decays to show a seasonal pattern or periodic behaviour in the data. In light of the notable upswings until lag 2, we believe that an MA parameter (q) of 1 or 2 would be appropriate.
+
+- PACF Plot: The PACF figure reveals a substantial positive partial autocorrelation at lag 1, and the remaining delays are not significant because they fall inside the confidence interval. According to this, AR parameter (p) should be 1.
+
+
+
+## 1.e Staionarity Check
+
+```{r}
+adf.test(airts)
+```
+
+- As per ADF teest the series doesn't pass the Null Hypothesis
+
+
+
+
+## 2 BoxCox Transformation
+
+
+- We shall use a Box-Cox transformation because the series fails the stationarity requirement. In order to help attain stationarity, box cox will help stabilise variance and make the data more regularly distributed. Before fitting an ARIMA model.
+
+
+```{r}
+airts2 <- airts + abs(min(airts))
+BC <- BoxCox.ar(airts2, lambda = seq(0, 2, 0.01))
+```
+
+
+
+```{r}
+BC$ci
+```
+
+
+
+```{r}
+lambda <- BC$lambda[which(max(BC$loglike) == BC$loglike)]
+lambda
+```
+
+
+```{r}
+airtsBC <- ((airts2^lambda) - 1) / lambda
+plot(airtsBC, type="o", xlab="Years", 
+ylab="Total Number of Passengers (in millions)", 
+main = "Time series plot of Total Air Passengers (2003 - 2023)")
+```
+
+## 2.a Test
+
+```{r}
+tests(airtsBC)
+```
+
+
+```{r}
+adf.test(airtsBC)
+```
+
+
+- The series' stationarity was not appreciably increased by the Box-Cox modification. As a result, the series was effectively changed into a stationary one by using first differencing, as shown by the results of the Augmented Dickey-Fuller test.
+
+
+
+## 3. Differncing
+
+```{r}
+airtsdiff <- diff(airts, differences = 1)
+par(mfrow=c(1,1))
+plot(airtsdiff,type='o', ylab ="Temperature Anomalies", main="Time series plot of the first
+difference of Temperature series.")
+```
+
+- The first differenced time series of temperature anomalies from 2003 to 2023 is displayed in the plot. The series shows a more stable mean after differencing, suggesting that the underlying tendency has been eliminated. Overall variability is more stable, although there are still bigger changes during specific periods, such around 2020. The series becomes stationary and the variance is stabilised with the aid of this transformation. The data has been successfully detrended by the first differencing, which improves its suitability for ARIMA modelling and forecasting. To verify that the differenced series is stationar, additional tests can be performed, such as the Augmented Dickey-Fuller (ADF) test.
+
+
+```{r}
+adf.test(airtsdiff)
+```
+
+- The Dickey-Fuller statistic of -6.7385 and the p-value of 0.01 are displayed by the Augmented Dickey-Fuller test following the initial differencing. Because of the low p-value, the null hypothesis of non-stationarity is rejected, indicating that the series is now stationary and appropriate for ARIMA modelling.
+
+
+
+```{r}
+tests(airtsdiff)
+```
+
+
+## 3.a Second Differencing
+
+```{r}
+airtsdiff2 <- diff(airts, differences = 2)
+par(mfrow=c(1,1))
+plot(airtsdiff2,type='o', ylab ="Temperature Anomalies", main="Time series plot of the second difference of Temperature series.")
+```
+
+```{r}
+adf.test(airtsdiff2)
+```
+
+```{r}
+tests(airtsdiff2)
+```
+
+
+- The time series' stationarity was considerably enhanced by the second differencing, as shown by the outcomes of the Augmented Dickey-Fuller (ADF) test. We are able to reject the null hypothesis of non-stationarity based on the Dickey-Fuller statistic of -9.8887 with a p-value of 0.01 obtained from the ADF test. The series is now stationary, as this verifies.
+- With most values falling within the confidence intervals, the ACF plot displays decreased autocorrelation and less reliance on historical data. Less notable spikes are shown in the PACF plot, which has a distinct cutoff at lag 1 and suggests a more straightforward ARIMA model structure. An MA(1) and maybe an AR(1) term can be included to represent the inverse link between the current value and the negative spike observed at lag 1 in both plots.
+- The series is now more suited for ARIMA modelling since the transformation stabilised the mean and decreased autocorrelation. The model's predictions are more accurate and dependable as a result of this increase in stationarity.
+
+
+# EACF Table
+
+```{r}
+eacf(airtsdiff2, ar.max = 4, ma.max = 3)
+```
+
+- The AR/MA grid compares various combinations of the moving average (MA) and autoregressive (AR) parameters to assist in choosing the best ARIMA model. On performing the EACF method on differencing 2 series these are the optimal ARIMA models.
+
+- ARIMA (0,2,2)
+- ARIMA (1,2,0)
+- ARIMA (1,2,1)
+- ARIMA (2,2,0)
+- ARIMA (3,2,0)
+- ARIMA (4,2,1)
+- ARIMA (4,2,3)
+
+# BIC Table
+
+```{r}
+res = armasubsets(y=airtsdiff2, nar=5, nma=5, y.name='p', ar.method='ols')
+plot(res)
+```
+
+##References 
+
+1. Data set : https://www.kaggle.com/datasets/yyxian/u-s-airline-traffic-data
+
+
+
+
+
+
