@@ -291,11 +291,12 @@ adf.test(airtsBC)
 ```{r}
 airtsdiff <- diff(airts, differences = 1)
 par(mfrow=c(1,1))
-plot(airtsdiff,type='o', ylab ="Temperature Anomalies", main="Time series plot of the first
-difference of Temperature series.")
+plot(airtsdiff,type='o', ylab ="Passengers", main="Time series plot of the first
+difference of Total passengersS series.")
 ```
 
-- The first differenced time series of temperature anomalies from 2003 to 2023 is displayed in the plot. The series shows a more stable mean after differencing, suggesting that the underlying tendency has been eliminated. Overall variability is more stable, although there are still bigger changes during specific periods, such around 2020. The series becomes stationary and the variance is stabilised with the aid of this transformation. The data has been successfully detrended by the first differencing, which improves its suitability for ARIMA modelling and forecasting. To verify that the differenced series is stationar, additional tests can be performed, such as the Augmented Dickey-Fuller (ADF) test.
+-  The first differenced time series of the total number of passengers from 2003 to 2023 is displayed in the plot. The time series now oscillates around a steady mean following the application of first differencing, demonstrating the elimination of any trend that may have existed in the original data. Though there are still some observable oscillations, especially around the year 2020, which are probably caused by outside influences, the figure indicates that the fluctuations are becoming more constant over time. Since the differenced series seems to be more stationary, ARIMA modelling and precise forecasting can benefit from it more.
+
 
 
 ```{r}
@@ -316,24 +317,34 @@ tests(airtsdiff)
 ```{r}
 airtsdiff2 <- diff(airts, differences = 2)
 par(mfrow=c(1,1))
-plot(airtsdiff2,type='o', ylab ="Temperature Anomalies", main="Time series plot of the second difference of Temperature series.")
+plot(airtsdiff2,type='o', ylab ="Total Passengers", main="Time series plot of the second difference of Total Passengers series.")
 ```
+
+
+- The second differenced time series of the total number of passengers from 2003 to 2023 is displayed in the plot. The series shows more consistent variations around a constant mean following the application of second differencing, suggesting that the trend and seasonal components have been successfully eliminated. Over time, the series' unpredictability becomes more constant, although there are still noticeable spikes, especially around 2020, which are probably the result of outside events. The series' stationarity has been significantly improved by the second differencing, which makes it even more appropriate for ARIMA modelling. By reducing autocorrelation and variation, this transformation yields a more dependable dataset for precise forecasting and analysis.
+
+
 
 ```{r}
 adf.test(airtsdiff2)
 ```
+
+- We are able to reject the null hypothesis of non-stationarity based on the Dickey-Fuller statistic of -9.8887 with a p-value of 0.01 obtained from the ADF test. 
+
 
 ```{r}
 tests(airtsdiff2)
 ```
 
 
-- The time series' stationarity was considerably enhanced by the second differencing, as shown by the outcomes of the Augmented Dickey-Fuller (ADF) test. We are able to reject the null hypothesis of non-stationarity based on the Dickey-Fuller statistic of -9.8887 with a p-value of 0.01 obtained from the ADF test. The series is now stationary, as this verifies.
-- With most values falling within the confidence intervals, the ACF plot displays decreased autocorrelation and less reliance on historical data. Less notable spikes are shown in the PACF plot, which has a distinct cutoff at lag 1 and suggests a more straightforward ARIMA model structure. An MA(1) and maybe an AR(1) term can be included to represent the inverse link between the current value and the negative spike observed at lag 1 in both plots.
+
+
+- The ACF plot displays decreased autocorrelation and less reliance on historical data. Less notable spikes are shown in the PACF plot, which has a distinct cutoff at lag 1 and suggests a more straightforward ARIMA model structure. An MA(1) and maybe an AR(1) term can be included to represent the inverse link between the current value and the negative spike observed at lag 1 in both plots.
+
 - The series is now more suited for ARIMA modelling since the transformation stabilised the mean and decreased autocorrelation. The model's predictions are more accurate and dependable as a result of this increase in stationarity.
 
 
-# EACF Table
+# 3.b EACF Table
 
 ```{r}
 eacf(airtsdiff2, ar.max = 4, ma.max = 3)
@@ -349,12 +360,43 @@ eacf(airtsdiff2, ar.max = 4, ma.max = 3)
 - ARIMA (4,2,1)
 - ARIMA (4,2,3)
 
-# BIC Table
+# 3.c BIC Table
 
 ```{r}
 res = armasubsets(y=airtsdiff2, nar=5, nma=5, y.name='p', ar.method='ols')
 plot(res)
 ```
+
+- To determine which ARIMA models had the lowest BIC values, we analysed the ARMA subsets plot. The following ARIMA models were determined to be the best fits for our time series data by concentrating on the darkest cells in the plot, which represent the best models:
+- ARIMA (1,2,1)
+- ARIMA (1,2,3)
+- ARIMA (2,2,3)
+- ARIMA (2,2,1)
+
+- These models were selected because they showed an excellent balance between model fit and complexity, as seen by their low BIC values.
+
+
+## 4 Parameter Estimation
+
+- Adter runinng all the analysis and required test to find out the optimal parameters for ARIMA Model we have the following models.
+
+
+- ARIMA (1,2,1)
+- ARIMA (1,2,1)
+- ARIMA (1,2,3)
+- ARIMA (2,2,3)
+- ARIMA (2,2,1)
+- ARIMA (0,2,2)
+- ARIMA (1,2,0)
+- ARIMA (1,2,1)
+- ARIMA (2,2,0)
+- ARIMA (3,2,0)
+- ARIMA (4,2,1)
+- ARIMA (4,2,3)
+
+- We can now find coefficients values to propose the best ARIMA Models.
+
+
 
 ##References 
 
